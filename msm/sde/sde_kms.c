@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -1195,6 +1196,8 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 			pr_err("Connector Post kickoff failed rc=%d\n",
 					 rc);
 		}
+
+		sde_connector_fod_notify(connector);
 	}
 
 	_sde_kms_drm_check_dpms(old_state, DRM_PANEL_EVENT_BLANK);
@@ -2821,6 +2824,12 @@ static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 		if (sde_encoder_in_clone_mode(conn->encoder))
 			continue;
 
+
+		crtc_id = drm_crtc_index(conn->state->crtc);
+		if (priv->disp_thread[crtc_id].thread)
+			kthread_flush_worker(
+				&priv->disp_thread[crtc_id].worker);
+
 		ret = sde_encoder_wait_for_event(conn->encoder,
 						MSM_ENC_TX_COMPLETE);
 		if (ret && ret != -EWOULDBLOCK) {
@@ -2828,7 +2837,6 @@ static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 				"[conn: %d] wait for commit done returned %d\n",
 				conn->base.id, ret);
 		} else if (!ret) {
-			crtc_id = drm_crtc_index(conn->state->crtc);
 			if (priv->event_thread[crtc_id].thread)
 				kthread_flush_worker(
 					&priv->event_thread[crtc_id].worker);
